@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import sys
 from typing import List, Tuple
+import math
+
+INF = math.inf
 
 def read_undirected_graph_from_txt(path: str) -> Tuple[int, List[Tuple[int,int,float]]]:
     edges: List[Tuple[int,int,float]] = []
@@ -24,6 +27,31 @@ def read_undirected_graph_from_txt(path: str) -> Tuple[int, List[Tuple[int,int,f
             edges.append((v, u, w))  # não-dir
 
     return n, edges
+
+def floyd_init_with_routing(n: int, edges: List[Tuple[int,int,float]]):
+    """
+    Inicializa:
+      D^0: distâncias diretas (0 na diagonal, ∞ se não há aresta)
+      R: matriz de roteamento com r_ij <- j (inclui diagonal para consistência)
+    """
+    # Matriz de distâncias 1-indexada
+    D = [[INF]*(n+1) for _ in range(n+1)]
+    for i in range(1, n+1):
+        D[i][i] = 0.0
+
+    # Preenche com o menor peso direto conhecido (pode haver paralelas)
+    for u, v, w in edges:
+        if w < D[u][v]:
+            D[u][v] = w
+
+    # Matriz de roteamento (next-hop): r_ij <- j se existe caminho direto (ou i==j)
+    R = [[None]*(n+1) for _ in range(n+1)]
+    for i in range(1, n+1):
+        for j in range(1, n+1):
+            if D[i][j] < INF:
+                R[i][j] = j
+    return D, R
+
 
 def main():
     if len(sys.argv) < 2:
