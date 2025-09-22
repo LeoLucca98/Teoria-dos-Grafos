@@ -52,6 +52,27 @@ def floyd_init_with_routing(n: int, edges: List[Tuple[int,int,float]]):
                 R[i][j] = j
     return D, R
 
+def floyd_warshall_with_routing(n: int, edges: List[Tuple[int,int,float]]):
+    """
+    Floyd–Warshall completo com matriz de roteamento R,
+    inspirado no pseudocódigo visto em sala.
+    """
+    D, R = floyd_init_with_routing(n, edges)
+
+    # laço principal
+    for k in range(1, n+1):
+        for i in range(1, n+1):
+            dik = D[i][k]
+            if dik == INF:  # otimização: ignora se i->k é ∞
+                continue
+            for j in range(1, n+1):
+                alt = dik + D[k][j]
+                if alt < D[i][j]:
+                    D[i][j] = alt
+                    R[i][j] = R[i][k]  # r_ij ← r_ik
+
+    return D, R
+
 
 def main():
     if len(sys.argv) < 2:
