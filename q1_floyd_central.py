@@ -35,51 +35,55 @@ def read_undirected_graph_from_txt(path: str) -> Tuple[int, List[Tuple[int,int,f
 
     return n, edges
 
-def floyd_init_with_routing(n: int, edges: List[Tuple[int,int,float]]):
+def floyd_warshall_with_routing(n: int, edges: List[Tuple[int,int,float]]):
     """
-    Inicializa:
-      D^0: distâncias diretas (0 na diagonal, ∞ se não há aresta)
-      R: matriz de roteamento com r_ij <- j (inclui diagonal para consistência)
+    Pseudocódigo de Floyd (como dado em sala):
+      r_ij ← j   ∀ i,j
+      D⁰ = [d_ij] ← V(G)
+      para k = 1 até n faça
+        para i = 1 até n faça
+          para j = 1 até n faça
+            se d_ik + d_kj < d_ij então
+              d_ij ← d_ik + d_kj
+              r_ij ← r_ik
     """
+    # D⁰ = [d_ij] ← V(G)
     D = [[INF]*(n+1) for _ in range(n+1)]
     for i in range(1, n+1):
         D[i][i] = 0.0
-
     for u, v, w in edges:
         if w < D[u][v]:
             D[u][v] = w
 
+    # r_ij ← j   ∀ i,j (quando há aresta direta ou i==j)
     R = [[None]*(n+1) for _ in range(n+1)]
     for i in range(1, n+1):
         for j in range(1, n+1):
             if D[i][j] < INF:
                 R[i][j] = j
-    return D, R
 
-def floyd_warshall_with_routing(n: int, edges: List[Tuple[int,int,float]]):
-    """
-    Floyd–Warshall completo com matriz de roteamento R,
-    inspirado no pseudocódigo visto em sala.
-    """
-    D, R = floyd_init_with_routing(n, edges)
-
+    # para k = 1 até n faça
     for k in range(1, n+1):
+        # para i = 1 até n faça
         for i in range(1, n+1):
             dik = D[i][k]
-            if dik == INF:
+            if dik == INF:  # otimização: ignora se não existe caminho i→k
                 continue
+            # para j = 1 até n faça
             for j in range(1, n+1):
                 alt = dik + D[k][j]
+                # se d_ik + d_kj < d_ij então
                 if alt < D[i][j]:
+                    # d_ij ← d_ik + d_kj
                     D[i][j] = alt
-                    R[i][j] = R[i][k]  # r_ij ← r_ik
+                    # r_ij ← r_ik
+                    R[i][j] = R[i][k]
 
     return D, R
 
 def reconstruct_path(R: List[List[int]], i: int, j: int) -> List[int]:
     """
-    Reconstrói o caminho i→j usando a matriz de roteamento R (next-hop).
-    Retorna [] se não há caminho.
+    Reconstrói o caminho i→j usando a matriz de roteamento R.
     """
     if i == j:
         return [i]
@@ -103,7 +107,6 @@ def reconstruct_path(R: List[List[int]], i: int, j: int) -> List[int]:
 def choose_central_vertex(D: List[List[float]]) -> Tuple[int, List[float]]:
     """
     Retorna (v_central, vetor_de_distancias).
-    v_central minimiza a soma das distâncias aos demais.
     """
     n = len(D) - 1
     best_v, best_sum, best_row = None, INF, None
@@ -135,10 +138,8 @@ def main():
     n, edges = read_undirected_graph_from_txt(path)
     D, R = floyd_warshall_with_routing(n, edges)
 
-    # (a) estação central e (b) vetor de distâncias
     central, vetor = choose_central_vertex(D)
 
-    # (c) mais distante a partir do central
     max_vert = max(range(1, n+1), key=lambda j: (-1 if j == central else vetor[j-1]))
     max_dist = vetor[max_vert-1]
 
