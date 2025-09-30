@@ -108,7 +108,7 @@ def neighbors4(grid: List[str], r: int, c: int) -> List[Cell]:
 # [Dijkstra]
 # ---------------------------
 # Núcleo do algoritmo conforme o anexo:
-# - dist[] armazena melhor custo conhecido de S até cada vértice.
+# - dist[] armazena o melhor custo conhecido de S até cada vértice.
 # - parent[] armazena o predecessor para reconstrução do caminho mínimo.
 # - heap (min-heap) realiza a operação de "extrair o vértice com menor distância"
 #   (Extract-Min), central no laço principal.
