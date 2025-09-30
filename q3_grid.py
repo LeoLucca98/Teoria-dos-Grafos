@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
-"""
-Mapa conciso para o pseudocódigo do livro:
-    V -> células transitáveis
-    origem (1) -> start (S)
-    d_i -> dist (dict; ausência = ∞)
-    anterior(i) -> parent
-    A (abertos) -> conteúdo vivo do min-heap (heap)
-    F (fechados) -> vértices já extraídos com distância consistente (não re-listados)
-    r -> vértice u retirado do heap (menor distância)
-    N(r) -> neighbors4(r)
-    v_{r,l} -> cell_cost(destino)
-    p = min[d_l, d_r + v_{r,l}] -> nd = d + w; comparar com dist.get(v, ∞)
-    decrease-key -> reinserção (nd, v); entradas antigas descartadas ao checar distância
-    parada antecipada -> quando goal sai do heap (dist ótima garantida)
+"""Implementação de Dijkstra sobre grid alinhada ao pseudocódigo fornecido.
 
-Fases: leitura/modelagem -> dijkstra (inicialização, laço extract-min + relaxamento) -> reconstrução -> visualização.
+Pseudocódigo (rotulado) para referência:
+    (P1) d_{1,1} ← 0
+    (P2) d_{1,i} ← ∞, ∀ i ≠ origem
+    (P3) A ← V
+    (P4) F ← ∅
+    (P5) anterior(i) ← 0, ∀ i
+    (P6) enquanto A ≠ ∅:
+                (P6.1) r ← vértice em A com menor d
+                (P6.2) mover r: F ← F ∪ {r}; A ← A − {r}
+                (P6.3) S ← sucessores abertos de r (N⁺(r) ∩ A)
+                (P6.4) para cada i ∈ S:
+                             (P6.4.1) p ← min(d_{1,i}, d_{1,r} + v_{r,i})
+                             (P6.4.2) se p < d_{1,i}: d_{1,i} ← p; anterior(i) ← r
+
+Mapeamento sintético neste arquivo:
+    - V: células transitáveis (tuplas (r,c)) implícitas em 'grid' + função neighbors4.
+    - Custos v_{r,i}: função cell_cost ao ENTRAR na célula destino.
+    - Estruturas dist (d_{1,i}) e parent (anterior(i)). Ausência em dist => ∞ (P2).
+    - Conjunto A (aberto) representado pelo min-heap 'heap'; vértices fora dele ou com entrada obsoleta são tratados ao comparar dist (lazy decrease-key). (P3)
+    - Conjunto F (fechado) não é armazenado explicitamente; equivalem os vértices para os quais retiramos a entrada válida (quando d == dist[u]) — isto realiza (P4).
+    - Laço principal e relaxamento: função dijkstra (ver comentários pontuais (P1..)).
+    - Parada antecipada: quando extraímos 'goal' (garantia de otimalidade após (P6.1)).
 """
 
 from __future__ import annotations
@@ -22,27 +30,19 @@ from typing import List, Tuple, Dict, Optional
 import heapq
 import sys
 
-# ---------------------------
-# [Representação do Grafo]
-# ---------------------------
-# Cada célula transitável é um vértice (r,c).
-# Arestas implícitas ligam (r,c) aos vizinhos N/S/L/O transitáveis.
-# O custo da aresta (u -> v) é o custo de ENTRAR em v (definido por COST).
+## Representação do Grafo
+# V: conjunto implícito das células transitáveis (tuplas (r,c)).
+# Arestas direcionais de custo >= 0 para vizinhos em 4 direções.
+# v_{r,i}: custo de entrar em i (cell_cost destino).
 Cell = Tuple[int, int]  # (row, col)
 
-COST = {
-    '.': 1, '=': 1,
-    '~': 3,
-    'S': 1, 'G': 1,
-}
+## Tabela de custos (define v_{r,i})
+COST = {'.': 1, '=': 1, '~': 3, 'S': 1, 'G': 1}
 
 OBSTACLE = '#'
 
-# ---------------------------
-# [Leitura do Grid]
-# ---------------------------
-# Apenas constrói a estrutura do problema (não é parte do núcleo do algoritmo).
-# Identifica S (origem) e G (alvo) para executar Dijkstra a partir de S.
+## Leitura / Modelagem (pré Dijkstra)
+# Identifica origem (start) e objetivo (goal) para aplicação do algoritmo.
 
 def read_grid(path: str) -> Tuple[List[str], Cell, Cell]:
     # Pré-processamento: constrói V e identifica origem (start) e objetivo (goal).
@@ -92,14 +92,13 @@ def is_passable(ch: str) -> bool:
 
 
 def cell_cost(ch: str) -> int:
-    # Define o peso não negativo usado por Dijkstra.
-    return COST.get(ch, 1)
+    return COST.get(ch, 1)  # v_{r,i}
 
 
 def neighbors4(grid: List[str], r: int, c: int) -> List[Cell]:
-    # Gera N(r): vizinhos em 4 direções (arestas unitárias conceituais com peso definido ao entrar). 
+    # N⁺(r) (P6.3): sucessores transitáveis.
     cand = [(r-1, c), (r+1, c), (r, c-1), (r, c+1)]
-    out = []
+    out: List[Cell] = []
     for nr, nc in cand:
         if in_bounds(grid, nr, nc) and is_passable(grid[nr][nc]):
             out.append((nr, nc))
@@ -115,39 +114,35 @@ def neighbors4(grid: List[str], r: int, c: int) -> List[Cell]:
 #   (Extract-Min), central no laço principal.
 
 def dijkstra(grid: List[str], start: Cell, goal: Cell):
-    """Dijkstra com lazy decrease-key e parada antecipada.
-    Retorna (path, total_cost, expanded_nodes)."""
-    dist: Dict[Cell, int] = {start: 0}
-    parent: Dict[Cell, Cell] = {}
+    """Executa Dijkstra alinhado ao pseudocódigo (P1..P6.4.2). Retorna (path, total_cost, expanded_nodes)."""
+    dist: Dict[Cell, int] = {start: 0}          # (P1) d_{1,1} ← 0  | (P2) implícito: demais ausentes => ∞
+    parent: Dict[Cell, Cell] = {}               # (P5) anterior(i) ← 0 (aqui: ausência => indefinido)
     expanded = 0
-    heap: List[Tuple[int, Cell]] = [(0, start)]  # abertos (A) iniciando pela origem
+    heap: List[Tuple[int, Cell]] = [(0, start)] # (P3) A ← V (representação implícita: só inserimos alcançáveis) + origem
+    # (P4) F ← ∅ implícito: nenhum extraído ainda
 
-    while heap:  # laço enquanto A ≠ ∅
-        d, u = heapq.heappop(heap)  # extract-min (r)
+    while heap:                                  # (P6) enquanto A ≠ ∅
+        d, u = heapq.heappop(heap)              # (P6.1) r ← vértice com menor d (extract-min)
         expanded += 1
-        if d != dist.get(u, float('inf')):
-            continue  # descarta entrada antiga (efeito decrease-key)
-        if u == goal:  # parada antecipada segura
+        if d != dist.get(u, float('inf')):      # entradas velhas simulam decrease-key (descartadas)
+            continue
+        if u == goal:                           # Parada antecipada após (P6.1) ao retirar objetivo
             path = reconstruct(parent, start, goal)
             return path, dist[goal], expanded
         ur, uc = u
-        for v in neighbors4(grid, ur, uc):  # N(r)
+        for v in neighbors4(grid, ur, uc):      # (P6.3) S: sucessores ainda "abertos" (não extraídos com dist consistente)
             vr, vc = v
-            nd = d + cell_cost(grid[vr][vc])  # candidato p = d_r + v_{r,l}
-            if nd < dist.get(v, float('inf')):  # relaxamento
-                dist[v] = nd
-                parent[v] = u
-                heapq.heappush(heap, (nd, v))
-    return [], float('inf'), expanded  # sem caminho
+            nd = d + cell_cost(grid[vr][vc])    # (P6.4.1) p candidato = d_{1,r} + v_{r,i}
+            if nd < dist.get(v, float('inf')):  # (P6.4.1) p < d_{1,i} ?
+                dist[v] = nd                    # (P6.4.2) d_{1,i} ← p
+                parent[v] = u                   # (P6.4.2) anterior(i) ← r
+                heapq.heappush(heap, (nd, v))   # reinserção = efeito de atualizar A
+        # (P6.2) r passa a compor F: fato implícito ao não voltar ao heap com mesma dist
+    return [], float('inf'), expanded            # nenhum caminho (distância ∞)
 
-# ---------------------------
-# [Reconstrução do Caminho]
-# ---------------------------
-# Não é parte do núcleo de Dijkstra no anexo, mas decorre de parent[]
-# definido pelas relaxações.
+## Reconstrução (após término: percorre anterior(i))
 
 def reconstruct(parent: Dict[Cell, Cell], start: Cell, goal: Cell) -> List[Cell]:
-    # Pós-processamento: percorre anterior(i) para formar o caminho.
     if goal not in parent and goal != start:
         return []
     cur = goal
@@ -158,13 +153,9 @@ def reconstruct(parent: Dict[Cell, Cell], start: Cell, goal: Cell) -> List[Cell]
     path.reverse()
     return path
 
-# ---------------------------
-# [Visualização do Resultado]
-# ---------------------------
-# Apenas sobrepõe '*' no caminho encontrado; não faz parte do algoritmo em si.
+## Visualização (não faz parte do pseudocódigo; apenas output)
 
 def overlay_path(grid: List[str], path: List[Cell]) -> List[str]:
-    # Visualização auxiliar (não faz parte de Dijkstra): sobrepõe '*'.
     g2 = [list(row) for row in grid]
     s = find_char(grid, 'S')
     g = find_char(grid, 'G')
@@ -173,9 +164,7 @@ def overlay_path(grid: List[str], path: List[Cell]) -> List[str]:
             g2[r][c] = '*'
     return [''.join(row) for row in g2]
 
-# ---------------------------
-# [Driver] — encadeia leitura, Dijkstra e impressão do resultado.
-# ---------------------------
+## Driver: orquestra leitura -> Dijkstra -> reconstrução -> visualização
 
 def solve_file(path: str) -> None:
     grid, s, g = read_grid(path)
@@ -194,6 +183,6 @@ def solve_file(path: str) -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Uso: python warehouse_pathfinding_dijkstra.py <arquivo_grid.txt>")
+        print("Uso: python q3_grid.py <arquivo_grid.txt>")
         sys.exit(1)
     solve_file(sys.argv[1])
