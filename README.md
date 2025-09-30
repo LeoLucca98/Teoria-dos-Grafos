@@ -1,6 +1,6 @@
-# Prática 1 — Grafos (Q1)
+# Prática 1
 
-Questão 1: Estação Central (grafo não-direcionado).  
+## Q1 - (Floyd)
 Formato de entrada:
 
 <num_vertices> <num_arestas>
@@ -10,8 +10,18 @@ Formato de entrada:
 Rodar:
 python q1_floyd_central.py graph1.txt
 
-# Q3 — Grid (Dijkstra)
-Formato do arquivo de entrada:
+## Q2 - (Bellman-Ford)
+Formato de entrada:
+
+<num_vertices> <num_arestas>
+<u> <v> <w>
+...
+
+Rodar:
+python q2_otimizando_caminho.py graph2.txt
+
+## Q3 — Grid (Dijkstra)
+Formato de entrada:
 
 <linhas> <colunas>
 <linha 1 do grid>
